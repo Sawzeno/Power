@@ -1,9 +1,3 @@
-[submodule "glfw"]
-	path = glfw
-	url = https://github.com/Sawzeno/glfw
-[submodule "power/vendor"]
-	path = power/vendor
-	url = https://github.com/Sawzeno/glfw
 [submodule "vendor"]
 	path = vendor
 	url = https://github.com/Sawzeno/glfw
