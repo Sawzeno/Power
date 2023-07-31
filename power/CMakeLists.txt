@@ -54,6 +54,11 @@ if(WIN32)
         ${GLEW_LIBRARY}
     )
 
+    target_include_directories(main
+    PRIVATE
+    ${GLEW_INCLUDE_DIR}
+)
+
     # Copy GLEW DLL to the build directory on Windows
     add_custom_command(TARGET main POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
