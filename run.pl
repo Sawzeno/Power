@@ -1,51 +1,154 @@
-#!/usr/bin/perl
+#!/usr/local/bin/perl
 
 use strict;
 use warnings;
-use File::Path qw(make_path remove_tree);  # Add the 'remove_tree' function here
+use File::Path qw(make_path remove_tree);  
 use Cwd;
 use POSIX ":sys_wait_h";
+use POSIX qw(sysconf _SC_PAGESIZE);
+use Time::HiRes qw(gettimeofday tv_interval);
+use List::Util qw(min);
+use Proc::ProcessTable;
+use Proc::ProcessTable::Process;
+use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 
 my $interrupted = 0;
+my $page_size = sysconf(_SC_PAGESIZE);
+my @child_pids;
 
 $SIG{INT} = \&interrupt_handler;
 
 sub interrupt_handler {
     $interrupted = 1;
     print "User interrupted the execution.\n";
-    exit 0;
+    # Terminate all child processes
+    foreach my $pid (@child_pids) {
+        kill 'INT', $pid;
+    }
+
+    # Wait for child processes to terminate
+    foreach my $pid (@child_pids) {
+        waitpid($pid, 0);
+        print "Process with PID $pid terminated.\n";
+    }
+
+    exit 1;
 }
 
 sub run_command {
     my ($command) = @_;
     print "\nRunning command: $command\n";
 
-    my $output = `$command 2>&1`;
+    my $output = "";
+    open(my $output_fh, '-|', $command) or die "Failed to run command: $!";
+    while (my $line = <$output_fh>) {
+        last if $interrupted; # Check if Ctrl+C was pressed
+        $output .= $line;
+        print $line; # Optional: If you want to print the output line by line
+    }
+    close($output_fh);
+
     my $exit_status = $? >> 8;
-    print "$output";
     if ($exit_status != 0) {
         print "Command '$command' failed at line " . __LINE__ . ". Press Enter to exit...";
         <STDIN>;
         exit 1;
     }
+
+    return $output;
+}
+
+sub error_handler {
+    my @pids = @_;
+
+    # Kill all the subprocesses and the parent process
+    foreach my $pid (@pids) {
+        kill 'INT', $pid;
+    }
+
+    die "User interrupted the execution.\n";
+}
+
+sub monitor_proc {
+    my ($pid, $start_time) = @_;
+    my $update_interval = 1; # Update interval in seconds
+    my $output = "";
+    my $process_running = 1;
+    my $parent_process = $$; # Get the PID of the parent process
+    my $page_size = sysconf(_SC_PAGESIZE); # Get the system's page size in bytes
+
+    print "Parent PID: $parent_process, Child PID: $pid\n";
+
+    while ($process_running) {
+        my $process_table = Proc::ProcessTable->new();
+        my $process_info;
+        foreach my $p (@{$process_table->table}) {
+            if ($p->pid == $parent_process) {
+                $process_info = $p;
+                last;
+            }
+        }
+    
+        last unless defined $process_info; # Check if the parent process is still running
+    
+        my $ps_output = `ps -p $pid -o %cpu,%mem,command`;
+        my ($cpu, $mem, $command) = $ps_output =~ /(\d+\.\d+)\s+(\d+\.\d+)\s+(.*)/;
+        my $cpu_percentage = defined $cpu ? $cpu : 0;
+        my $mem_usage = $process_info->rss * $page_size / 1024; # Memory usage in KB
+        my $cpu_time = $process_info->pctcpu;
+        my $mem_percentage = $process_info->pctmem;
+    
+        last unless $cpu_time; # Check if the child process is still running
+    
+        my $end_time = [gettimeofday];
+        my $elapsed_time = tv_interval($start_time, $end_time);
+    
+        printf("\rElapsed time: %0.2f seconds, CPU time: %0.2f%%, Memory usage: %0.2f KB, CPU percentage: %0.2f%%, Memory percentage: %0.2f%%, Command: %s",
+            $elapsed_time, $cpu_time, $mem_usage, $cpu_percentage, $mem_percentage, $command);
+    
+        $output .= $ps_output;
+        $process_running = kill 0, $pid; # Check if the process is still running
+        last if waitpid($pid, WNOHANG) != 0; # Check if the child process has finished
+        sleep $update_interval;
+    }
+
+    print "\n"; # Newline to end the line properly after the loop
+
+    return $output;
 }
 
 sub exec_file {
     my ($file) = @_;
-    print "\nRunning file: $file\n";
+    print "\n Running file: $file\n";
 
-    if (-x $file) {
-        system($file);
-    } else {
-        print "File '$file' not found or not executable. Skipping execution.\n";
+    my $start_time = [gettimeofday];
+    my $pid = fork();
+    die "Failed to fork: $!" unless defined $pid;
+
+    if ($pid == 0) { # Child process
+        my $child_pid = $$;
+        eval {
+            local $SIG{INT} = sub { die "User interrupted the execution.\n" };
+            exec($file);
+            die "Failed to execute $file: $!";
+        };
+
+        # If an exception occurred, kill the parent process
+        error_handler($child_pid, $$) if $@;
+    } else { # Parent process
+        my $parent_pid = $$;
+        my $process_table = Proc::ProcessTable->new();
+
+        monitor_proc($pid, $start_time, $process_table);
     }
 }
 
 sub run_commands {
     my (@commands) = @_;
     foreach my $command (@commands) {
-        last if $interrupted; # Check if Ctrl+C was pressed
+        last if $interrupted;
         run_command($command);
+        last if $interrupted;
     }
 }
 
@@ -80,11 +183,11 @@ if (@ARGV) {
             "make"
         );
 
+        run_commands(@commands);
         chdir $project_name or die "Failed to change directory to $project_name at line " . __LINE__ . ": $!";
         my $current_dir = getcwd();
         print "Current directory: $current_dir\n";
 
-        run_commands(@commands);
         exec_file("./main")
 
     }elsif($ARGV[0] eq "make"){
@@ -108,5 +211,3 @@ if (@ARGV) {
 
 print "Press Enter to exit...";
 <STDIN>;
-
-
