@@ -33,11 +33,6 @@ PUBLIC
 ${CMAKE_CURRENT_SOURCE_DIR}/../includes
 )
 
-target_include_directories(main
-PUBLIC
-${CMAKE_CURRENT_SOURCE_DIR}/../includes
-)
-
 MESSAGE(STATUS "CONFIGURING GLEW")
 
 # Set the CMake prefix path to the GLEW directory on Windows
@@ -88,3 +83,23 @@ if(APPLE)
     )
 endif()
 
+# for linux
+
+if(UNIX AND NOT APPLE)
+	#find glew library and headers
+	find_package(GLEW REQUIRED)
+
+	MESSAGE(STATUS "LINKING GLEW --LINUX")
+
+	#link the main target with GLEW library on linux
+	target_link_libraries(main
+		PRIVATE
+		GLEW::GLEW
+	)
+
+	#Include GLEW Headers for the main
+	target_include_directories(main
+		PUBLIC
+		${GLEW_INCLUDE_DIRS}
+	)
+endif()
