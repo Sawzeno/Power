@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(power)
 
+add_compile_definitions(PROJECT_DIR="${CMAKE_SOURCE_DIR}")
 
 add_executable(main main.cpp)
 
@@ -25,6 +26,11 @@ find_package(OpenGL REQUIRED)
 target_link_libraries(main
   PRIVATE
   OpenGL::GL
+)
+
+target_include_directories(main
+PUBLIC
+${CMAKE_CURRENT_SOURCE_DIR}/../includes
 )
 
 target_include_directories(main
