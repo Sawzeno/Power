@@ -3,14 +3,15 @@ project(power)
 
 add_compile_definitions(PROJECT_DIR="${CMAKE_SOURCE_DIR}")
 
-add_executable(main main.cpp)
+MESSAGE(STATUS "Compiler being used: ${CMAKE_C_COMPILER}")
 
 MESSAGE(STATUS "LINKING SRC")
 
-target_link_libraries(main
-  PUBLIC
-  srclib
-)
+set(SOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+file(GLOB SOURCES "${SOURCES_DIR}/*.cpp")
+
+add_executable(main ${SOURCES})
+
 
 MESSAGE(STATUS "LINKING GLFW")
 

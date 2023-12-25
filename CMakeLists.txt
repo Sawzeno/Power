@@ -5,9 +5,6 @@ project(power)
 MESSAGE(STATUS "POWER")
 add_subdirectory(power)
 
-MESSAGE(STATUS "SRC")
-add_subdirectory(src)
-
 MESSAGE(STATUS "INCLUDES")
 add_subdirectory(includes)
 
