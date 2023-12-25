@@ -3,11 +3,7 @@ project(power)
 
 add_compile_definitions(PROJECT_DIR="${CMAKE_SOURCE_DIR}")
 
-if(MSVC)
-    # Set the compiler to MSVC
-    set(CMAKE_CXX_COMPILER "cl")
-    set(CMAKE_C_COMPILER "cl")
-endif()
+MESSAGE(STATUS "Compiler being used: ${CMAKE_C_COMPILER}")
 
 MESSAGE(STATUS "LINKING SRC")
 
